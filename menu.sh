@@ -1927,7 +1927,7 @@ install_falcon_proxy() {
     fi
     
     # Construct download URL based on selected version
-    local download_url="https://github.com/firewallfalcons/FirewallFalcon-Manager/releases/download/$SELECTED_VERSION/$binary_name"
+    local download_url="https://github.com/porfirio125/SSH_VPN/releases/download/$SELECTED_VERSION/$binary_name"
 
     echo -e "\n${C_GREEN}📥 Downloading Falcon Proxy $SELECTED_VERSION ($binary_name)...${C_RESET}"
     wget -q --show-progress -O "$FALCONPROXY_BINARY" "$download_url"
