@@ -295,7 +295,7 @@ while true; do
             banner_file="/etc/firewallfalcon/banners/${user}.txt"
             {
                 server_time=$(date +"%d/%m/%Y %H:%M:%S")
-                echo -e "<br><font color=\"#1867C0\"><b>━━━━━━━━━━━━━━━━━━━━━━━━━━━</b></font>"
+                echo -e "<br><font color=\"#1867C0\"><b>━━━━━━━━━━━━━━━━━━━━━━━━━━━</b></font><br>"
                 echo -e "<font color=\"#FF9100\"><b>✨ ESTADO DE LA CUENTA ✨</b></font><br>"
                 echo -e "<font color=\"#26A69A\">👤 <b>Usuario autorizado :</b></font> <font color=\"#FFFFFF\">$user</font><br>"
                 echo -e "<font color=\"#26A69A\">🕑 <b>Hora del servidor :</b></font> <font color=\"#FFFFFF\">$server_time</font><br>"
