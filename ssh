@@ -1,0 +1,57 @@
+# FIREWALLFALCON - Optimized for HTTP Custom/Injector - Fast SSH Connection
+
+Port 22
+Protocol 2
+
+# Fast and stable key exchange & reduced delay
+Ciphers aes128-ctr,aes192-ctr,aes256-ctr,chacha20-poly1305@openssh.com
+MACs hmac-sha1,hmac-sha2-256,hmac-sha2-512
+KexAlgorithms curve25519-sha256,ecdh-sha2-nistp521,ecdh-sha2-nistp384,diffie-hellman-group14-sha1
+
+# Reduce connection setup time
+LoginGraceTime 30
+TCPKeepAlive yes
+ClientAliveInterval 30
+ClientAliveCountMax 5
+UseDNS no
+
+# Authentication
+PermitRootLogin yes
+PasswordAuthentication yes
+PubkeyAuthentication yes
+ChallengeResponseAuthentication no
+PermitEmptyPasswords no
+PermitTunnel yes
+
+# Security and compatibility for HTTP Injector
+StrictModes no
+AllowTcpForwarding yes
+GatewayPorts yes
+
+# Logging
+SyslogFacility AUTH
+LogLevel INFO
+
+# SSH Banner and MOTD
+PrintMotd no
+PrintLastLog yes
+Banner /etc/bannerssh
+
+# SFTP and Environment
+Subsystem sftp /usr/lib/openssh/sftp-server
+AcceptEnv LANG LC_*
+
+# PAM & X11
+UsePAM yes
+X11Forwarding yes
+X11DisplayOffset 10
+
+# Disable less-used legacy features
+RhostsRSAAuthentication no
+HostbasedAuthentication no
+RSAAuthentication yes
+IgnoreRhosts yes
+
+# Optional performance: allow more sessions
+MaxSessions 50
+MaxStartups 50:30:100
