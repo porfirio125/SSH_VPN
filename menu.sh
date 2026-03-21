@@ -295,15 +295,14 @@ while true; do
             banner_file="/etc/firewallfalcon/banners/${user}.txt"
             {
             server_time=$(date +"%d/%m/%Y %H:%M:%S")
-            echo -e "<br><font color=\"#757575\">───────────────────────────</font><br>"
-            echo -e "<b><font color=\"#007BFF\">ESTADO DE CUENTA</font></b><br>"
-            echo -e "<font color=\"#424242\">Usuario:</font> <b>$user</b><br>"
-            echo -e "<font color=\"#424242\">Servidor:</font> $server_time<br>"
-            echo -e "<font color=\"#424242\">Vencimiento:</font> $expiry ($days_left)<br>"
-            echo -e "<font color=\"#424242\">Consumo:</font> $bw_info<br>"
-            echo -e "<font color=\"#424242\">Sesiones:</font> $online_count/$limit<br>"
-            echo -e "<font color=\"#757575\">───────────────────────────</font><br>"
-            } > "$banner_file"
+            echo -e "<br><font color=\"#448AFF\"><b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b></font><br>"
+            echo -e "<font color=\"#FF6D00\"><b>✨ ESTADO DE LA CUENTA ✨</b></font><br>"
+            echo -e "<font color=\"#00B8D4\">👤 Usuario:</font> <font color=\"#424242\"><b>$user</b></font><br>"
+            echo -e "<font color=\"#00B8D4\">🕑 Servidor:</font> <font color=\"#424242\">$server_time</font><br>"
+            echo -e "<font color=\"#00B8D4\">📅 Expira:</font> <font color=\"#424242\">$expiry</font> <font color=\"#FF6D00\">($days_left)</font><br>"
+            echo -e "<font color=\"#00B8D4\">📊 Tráfico:</font> <font color=\"#424242\">$bw_info</font><br>"
+            echo -e "<font color=\"#00B8D4\">🔌 Sesiones:</font> <font color=\"#424242\">$online_count/$limit</font><br>"
+            echo -e "<font color=\"#448AFF\"><b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b></font><br>"
         fi
 
         # --- Bandwidth Limiting ---
