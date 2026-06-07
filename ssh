@@ -1,0 +1,35 @@
+# FIREWALLFALCON - SSH Configuration for Debian/Ubuntu VPS
+# Optimized for performance, security, and compatibility with Android VPN apps (HTTP Injector, HTTP Custom, etc.)
+
+Port 22
+SyslogFacility AUTH
+LogLevel INFO
+LoginGraceTime 120
+PermitRootLogin yes
+StrictModes yes
+PubkeyAuthentication yes
+IgnoreRhosts yes
+HostbasedAuthentication no
+PermitEmptyPasswords no
+PermitTunnel yes
+KbdInteractiveAuthentication no
+PasswordAuthentication yes
+X11Forwarding yes
+X11DisplayOffset 10
+PrintMotd no
+PrintLastLog yes
+TCPKeepAlive yes
+GatewayPorts yes
+ClientAliveInterval 30
+ClientAliveCountMax 3
+AcceptEnv LANG LC_*
+Subsystem sftp /usr/lib/openssh/sftp-server
+UsePAM yes
+Banner /etc/bannerssh
+
+# Compatibility with legacy SSH clients on Android VPN apps (HTTP Injector, HTTP Custom, etc.)
+KexAlgorithms +diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1
+Ciphers +aes128-cbc,aes192-cbc,aes256-cbc,3des-cbc
+HostKeyAlgorithms +ssh-rsa
+PubkeyAcceptedAlgorithms +ssh-rsa
+MACs +hmac-sha1,hmac-sha1-96
