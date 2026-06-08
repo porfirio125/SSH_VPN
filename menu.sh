@@ -3916,7 +3916,7 @@ refresh_ssh_session_cache() {
         if [[ -n "$ssh_owner" && "$ssh_owner" != "root" && "$ssh_owner" != "sshd" && -n "${managed_user_lookup[$ssh_owner]+x}" ]]; then
             session_pids["$ssh_owner"]+="$ssh_pid "
         fi
-    done < <(ps -C sshd -o pid=,user= 2>/dev/null)
+    done < <(ps -eo pid=,user=,comm= | grep -E 'sshd|sshd-session' | awk '{print $1, $2}')
 
     # Method 2: kernel loginuid with comm/PPid validation (more robust — matches limiter logic)
     local sshd_pids pid_num p login_uid candidate_user pid_dir ppid_val key value
