@@ -693,7 +693,7 @@ setup_limiter_service() {
     # Combined limiter + bandwidth monitoring
     cat > "$LIMITER_SCRIPT" << 'EOF'
 #!/bin/bash
-# FirewallFalcon limiter version 2026-06-07.1
+# FirewallFalcon limiter version 2026-06-08.1
 DB_FILE="/etc/firewallfalcon/users.db"
 BW_DIR="/etc/firewallfalcon/bandwidth"
 PID_DIR="$BW_DIR/pidtrack"
@@ -744,16 +744,16 @@ while true; do
         [[ -n "$username" && "$uid" =~ ^[0-9]+$ ]] && uid_to_user["$uid"]="$username"
     done < /etc/passwd
 
-    # Method 1: process owner from ps
+    # Method 1: process owner from ps (robustly supports sshd-session)
     while read -r ssh_pid ssh_owner; do
         [[ "$ssh_pid" =~ ^[0-9]+$ ]] || continue
         if [[ -n "$ssh_owner" && "$ssh_owner" != "root" && "$ssh_owner" != "sshd" ]]; then
             session_pids["$ssh_owner"]+="$ssh_pid "
         fi
-    done < <(ps -C sshd -o pid=,user= 2>/dev/null)
+    done < <(ps -eo pid=,user=,comm= 2>/dev/null | grep -E 'sshd|sshd-session' | awk '{print $1, $2}')
 
-    # Method 2: kernel loginuid (reliable even when sshd runs as root)
-    sshd_pids=$(pgrep sshd 2>/dev/null || ps -C sshd -o pid= 2>/dev/null)
+    # Method 2: kernel loginuid (reliable even when sshd runs as root, supports sshd-session)
+    sshd_pids=$(pgrep -f 'sshd|sshd-session' 2>/dev/null || pgrep sshd 2>/dev/null || ps -eo pid=,comm= 2>/dev/null | grep -E 'sshd|sshd-session' | awk '{print $1}')
     for pid_num in $sshd_pids; do
         p="/proc/$pid_num/loginuid"
         [[ -f "$p" ]] || continue
@@ -855,17 +855,18 @@ while true; do
             fi
 
             bw_info="Unlimited"
+            usagefile="$BW_DIR/${user}.usage"
+            accum_disp=0
+            if [[ -f "$usagefile" ]]; then
+                read -r accum_disp < "$usagefile"
+                [[ "$accum_disp" =~ ^[0-9]+$ ]] || accum_disp=0
+            fi
+            used_gb_int=$((accum_disp / 1073741824))
+            used_gb_frac=$(( (accum_disp % 1073741824) * 100 / 1073741824 ))
+            printf -v used_gb "%d.%02d" "$used_gb_int" "$used_gb_frac"
+
             bw_gb_int="${bandwidth_gb%%.*}"
             if [[ "$bandwidth_gb" != "0" && -n "$bandwidth_gb" && "$bw_gb_int" =~ ^[0-9]+$ ]]; then
-                usagefile="$BW_DIR/${user}.usage"
-                accum_disp=0
-                if [[ -f "$usagefile" ]]; then
-                    read -r accum_disp < "$usagefile"
-                    [[ "$accum_disp" =~ ^[0-9]+$ ]] || accum_disp=0
-                fi
-                used_gb_int=$((accum_disp / 1073741824))
-                used_gb_frac=$(( (accum_disp % 1073741824) * 100 / 1073741824 ))
-                printf -v used_gb "%d.%02d" "$used_gb_int" "$used_gb_frac"
                 quota_b=$(( bw_gb_int * 1073741824 ))
                 remain_b=$(( quota_b - accum_disp ))
                 (( remain_b < 0 )) && remain_b=0
@@ -873,6 +874,8 @@ while true; do
                 remain_gb_frac=$(( (remain_b % 1073741824) * 100 / 1073741824 ))
                 printf -v remain_gb "%d.%02d" "$remain_gb_int" "$remain_gb_frac"
                 bw_info="${used_gb}/${bandwidth_gb} GB used | ${remain_gb} GB left"
+            else
+                bw_info="${used_gb} GB used | Unlimited"
             fi
 
             banner_content="<br>"
@@ -895,8 +898,6 @@ while true; do
             banner_content+="<b><font color=\"#00a8ff\">❖━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❖</font></b><br>"
             write_banner_if_changed "$user" "$banner_content"
         fi
-
-        [[ -z "$bandwidth_gb" || "$bandwidth_gb" == "0" ]] && continue
 
         usagefile="$BW_DIR/${user}.usage"
         accumulated=0
@@ -1005,7 +1006,7 @@ EOF
 }
 
 sync_runtime_components_if_needed() {
-    local limiter_marker="# FirewallFalcon limiter version 2026-06-07.1"
+    local limiter_marker="# FirewallFalcon limiter version 2026-06-08.1"
     cleanup_legacy_bandwidth_runtime
     setup_trial_cleanup_script >/dev/null 2>&1
     if [[ ! -f "$LIMITER_SCRIPT" ]] || ! grep -Fqx "$limiter_marker" "$LIMITER_SCRIPT" 2>/dev/null; then
@@ -1561,7 +1562,7 @@ create_user() {
     fi
     usermod -aG "$FF_USERS_GROUP" "$username" 2>/dev/null
     echo "$username:$password" | chpasswd; chage -E "$expire_date" "$username"
-    echo "$username:$password:$expire_date:$limit:$bandwidth_gb:trial" >> "$DB_FILE"
+    echo "$username:$password:$expire_date:$limit:$bandwidth_gb:regular" >> "$DB_FILE"
     
     local bw_display="Unlimited"
     if [[ "$bandwidth_gb" != "0" ]]; then bw_display="${bandwidth_gb} GB"; fi
@@ -1611,8 +1612,8 @@ edit_user() {
         
         # Show current user details
         local current_line; current_line=$(grep "^$username:" "$DB_FILE")
-        local cur_pass cur_expiry cur_limit cur_bw
-        IFS=: read -r _ cur_pass cur_expiry cur_limit cur_bw _ <<< "$current_line"
+        local cur_pass cur_expiry cur_limit cur_bw cur_trial_marker
+        IFS=: read -r _ cur_pass cur_expiry cur_limit cur_bw cur_trial_marker _ <<< "$current_line"
         [[ -z "$cur_bw" ]] && cur_bw="0"
         local cur_bw_display="Unlimited"; [[ "$cur_bw" != "0" ]] && cur_bw_display="${cur_bw} GB"
         
@@ -1656,23 +1657,23 @@ edit_user() {
                    fi
                done
                echo "$username:$new_pass" | chpasswd
-               sed -i "s|^$username:.*|$username:$new_pass:$cur_expiry:$cur_limit:$cur_bw|" "$DB_FILE"
+               sed -i "s|^$username:.*|$username:$new_pass:$cur_expiry:$cur_limit:$cur_bw:$cur_trial_marker|" "$DB_FILE"
                echo -e "\n${C_GREEN}✅ Password for '$username' changed to: ${C_YELLOW}$new_pass${C_RESET}"
                ;;
             2) read -p "Enter new duration (in days from today): " days
                if [[ "$days" =~ ^[0-9]+$ ]]; then
                    local new_expire_date; new_expire_date=$(date -d "+$days days" +%Y-%m-%d); chage -E "$new_expire_date" "$username"
-                   sed -i "s|^$username:.*|$username:$cur_pass:$new_expire_date:$cur_limit:$cur_bw|" "$DB_FILE"
+                   sed -i "s|^$username:.*|$username:$cur_pass:$new_expire_date:$cur_limit:$cur_bw:$cur_trial_marker|" "$DB_FILE"
                    echo -e "\n${C_GREEN}✅ Expiration for '$username' set to ${C_YELLOW}$new_expire_date${C_RESET}."
                else echo -e "\n${C_RED}❌ Invalid number of days.${C_RESET}"; fi ;;
             3) read -p "Enter new simultaneous connection limit: " new_limit
                if [[ "$new_limit" =~ ^[0-9]+$ ]]; then
-                   sed -i "s|^$username:.*|$username:$cur_pass:$cur_expiry:$new_limit:$cur_bw|" "$DB_FILE"
+                   sed -i "s|^$username:.*|$username:$cur_pass:$cur_expiry:$new_limit:$cur_bw:$cur_trial_marker|" "$DB_FILE"
                    echo -e "\n${C_GREEN}✅ Connection limit for '$username' set to ${C_YELLOW}$new_limit${C_RESET}."
                else echo -e "\n${C_RED}❌ Invalid limit.${C_RESET}"; fi ;;
             4) read -p "Enter new bandwidth limit in GB (0 = unlimited): " new_bw
                if [[ "$new_bw" =~ ^[0-9]+\.?[0-9]*$ ]]; then
-                   sed -i "s/^$username:.*/$username:$cur_pass:$cur_expiry:$cur_limit:$new_bw/" "$DB_FILE"
+                   sed -i "s/^$username:.*/$username:$cur_pass:$cur_expiry:$cur_limit:$new_bw:$cur_trial_marker/" "$DB_FILE"
                    local bw_msg="Unlimited"; [[ "$new_bw" != "0" ]] && bw_msg="${new_bw} GB"
                    echo -e "\n${C_GREEN}✅ Bandwidth limit for '$username' set to ${C_YELLOW}$bw_msg${C_RESET}."
                    # Unlock user if they were locked due to bandwidth
@@ -1778,21 +1779,24 @@ list_users() {
         local quota_exceeded=false
 
         [[ -z "$bandwidth_gb" ]] && bandwidth_gb="0"
-        local bw_string="Unlimited"
+        local used_bytes=0
+        if [[ -f "$BANDWIDTH_DIR/${user}.usage" ]]; then
+            read -r used_bytes < "$BANDWIDTH_DIR/${user}.usage" 2>/dev/null || used_bytes=0
+            [[ "$used_bytes" =~ ^[0-9]+$ ]] || used_bytes=0
+        fi
+        local used_gb
+        used_gb=$(awk "BEGIN {printf \"%.1f\", $used_bytes / 1073741824}")
+
+        local bw_string
         if [[ "$bandwidth_gb" != "0" ]]; then
-            local used_bytes=0
-            if [[ -f "$BANDWIDTH_DIR/${user}.usage" ]]; then
-                read -r used_bytes < "$BANDWIDTH_DIR/${user}.usage" 2>/dev/null || used_bytes=0
-                [[ "$used_bytes" =~ ^[0-9]+$ ]] || used_bytes=0
-            fi
-            local used_gb
-            used_gb=$(awk "BEGIN {printf \"%.1f\", $used_bytes / 1073741824}")
             bw_string="${used_gb}/${bandwidth_gb}GB"
             local quota_bytes
             quota_bytes=$(awk "BEGIN {printf \"%.0f\", $bandwidth_gb * 1073741824}")
             if [[ "$quota_bytes" =~ ^[0-9]+$ ]] && (( used_bytes >= quota_bytes )); then
                 quota_exceeded=true
             fi
+        else
+            bw_string="${used_gb}/Unlimited"
         fi
 
         if [[ -z "${system_user_lookup[$user]+x}" ]]; then
@@ -1961,7 +1965,7 @@ restore_user_data() {
     echo -e "${C_BLUE}⚙️ Re-synchronizing system accounts with the restored database...${C_RESET}"
     ensure_firewallfalcon_system_group
     
-    while IFS=: read -r user pass expiry limit; do
+    while IFS=: read -r user pass expiry limit _rest; do
         echo "Processing user: ${C_YELLOW}$user${C_RESET}"
         if ! id "$user" &>/dev/null; then
             echo " - User does not exist in system. Creating..."
