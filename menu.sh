@@ -515,6 +515,29 @@ initial_setup() {
     disable_dynamic_ssh_banner_system
     systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
     
+    if [[ ! -f "$SSH_BANNER_FILE" || ! -s "$SSH_BANNER_FILE" ]]; then
+        local sys_os sys_arch sys_kernel
+        sys_os=$(grep -w "PRETTY_NAME" /etc/os-release | cut -d= -f2 | tr -d '"')
+        [[ -z "$sys_os" ]] && sys_os="Linux"
+        sys_arch=$(uname -m)
+        sys_kernel=$(uname -r)
+        cat > "$SSH_BANNER_FILE" <<EOF
+<br>
+<b><font color="#00a8ff">❖━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❖</font></b><br>
+<b><font color="#ff8f00">      🚀 FIREWALLFALCON SSH SERVICE 🚀      </font></b><br>
+<b><font color="#00a8ff">❖━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❖</font></b><br>
+<br>
+🖥️ <b>OS System :</b> ${sys_os} (${sys_arch})<br>
+⚙️ <b>Kernel    :</b> ${sys_kernel}<br>
+🔓 <b>Status    :</b> Online & Active<br>
+<br>
+⚠️ <b>Rules:</b> Multi-login, torrenting, spamming, and DDoS are strictly prohibited! Violation will result in automatic account suspension.<br>
+<br>
+<b><font color="#00a8ff">❖━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❖</font></b><br>
+EOF
+        chmod 644 "$SSH_BANNER_FILE"
+    fi
+
     if [ ! -f "$INSTALL_FLAG_FILE" ]; then
         touch "$INSTALL_FLAG_FILE"
     fi
@@ -703,6 +726,13 @@ while true; do
     printf -v current_ts '%(%s)T' -1
     dynamic_banners_enabled=false
 
+    sys_os=$(grep -w "PRETTY_NAME" /etc/os-release | cut -d= -f2 | tr -d '"')
+    [[ -z "$sys_os" ]] && sys_os="Linux"
+    sys_arch=$(uname -m)
+    sys_kernel=$(uname -r)
+    sys_uptime=$(uptime -p | sed 's/^up //')
+    [[ -z "$sys_uptime" ]] && sys_uptime="just started"
+
     # Reset associative arrays each cycle (unset first to avoid stale data)
     unset session_pids locked_users uid_to_user loginuid_pids
     declare -A session_pids=()
@@ -825,7 +855,8 @@ while true; do
             fi
 
             bw_info="Unlimited"
-            if [[ "$bandwidth_gb" != "0" && -n "$bandwidth_gb" ]]; then
+            bw_gb_int="${bandwidth_gb%%.*}"
+            if [[ "$bandwidth_gb" != "0" && -n "$bandwidth_gb" && "$bw_gb_int" =~ ^[0-9]+$ ]]; then
                 usagefile="$BW_DIR/${user}.usage"
                 accum_disp=0
                 if [[ -f "$usagefile" ]]; then
@@ -835,7 +866,7 @@ while true; do
                 used_gb_int=$((accum_disp / 1073741824))
                 used_gb_frac=$(( (accum_disp % 1073741824) * 100 / 1073741824 ))
                 printf -v used_gb "%d.%02d" "$used_gb_int" "$used_gb_frac"
-                quota_b=$(( ${bandwidth_gb%%.*} * 1073741824 ))
+                quota_b=$(( bw_gb_int * 1073741824 ))
                 remain_b=$(( quota_b - accum_disp ))
                 (( remain_b < 0 )) && remain_b=0
                 remain_gb_int=$((remain_b / 1073741824))
@@ -844,11 +875,24 @@ while true; do
                 bw_info="${used_gb}/${bandwidth_gb} GB used | ${remain_gb} GB left"
             fi
 
-            banner_content="<br><font color=\"yellow\"><b>      ✨ ACCOUNT STATUS ✨      </b></font><br><br>"
-            banner_content+="<font color=\"white\">👤 <b>Username   :</b> $user</font><br>"
-            banner_content+="<font color=\"white\">📅 <b>Expiration :</b> $expiry ($days_left)</font><br>"
-            banner_content+="<font color=\"white\">📊 <b>Bandwidth  :</b> $bw_info</font><br>"
-            banner_content+="<font color=\"white\">🔌 <b>Sessions   :</b> $online_count/$limit</font><br><br>"
+            banner_content="<br>"
+            banner_content+="<b><font color=\"#00a8ff\">❖━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❖</font></b><br>"
+            banner_content+="<b><font color=\"#ff8f00\">      🚀 SSH TUNNEL CONFIGURATION 🚀      </font></b><br>"
+            banner_content+="<b><font color=\"#00a8ff\">❖━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❖</font></b><br>"
+            banner_content+="<br>"
+            banner_content+="🖥️ <b>OS System :</b> $sys_os ($sys_arch)<br>"
+            banner_content+="⚙️ <b>Kernel    :</b> $sys_kernel<br>"
+            banner_content+="⏱️ <b>Uptime    :</b> $sys_uptime<br>"
+            banner_content+="<br>"
+            banner_content+="<b><font color=\"#ff8f00\">🔹 Account Information:</font></b><br>"
+            banner_content+="👤 <b>Username  :</b> $user<br>"
+            banner_content+="📅 <b>Expires   :</b> $expiry ($days_left)<br>"
+            banner_content+="📊 <b>Traffic   :</b> $bw_info<br>"
+            banner_content+="🔌 <b>Limit     :</b> $online_count/$limit Active Connections<br>"
+            banner_content+="<br>"
+            banner_content+="<b><font color=\"#00a8ff\">❖━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❖</font></b><br>"
+            banner_content+="<b><font color=\"#ff8f00\">   Thank you for using our services!   </font></b><br>"
+            banner_content+="<b><font color=\"#00a8ff\">❖━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❖</font></b><br>"
             write_banner_if_changed "$user" "$banner_content"
         fi
 
@@ -906,12 +950,15 @@ while true; do
         new_total=$((accumulated + delta_total))
         printf "%s\n" "$new_total" > "$usagefile"
 
-        quota_bytes=$(( ${bandwidth_gb%%.*} * 1073741824 ))
-        if [[ "$quota_bytes" =~ ^[0-9]+$ ]] && (( new_total >= quota_bytes )); then
-            if ! $user_locked; then
-                usermod -L "$user" &>/dev/null
-                killall -u "$user" -9 &>/dev/null
-                locked_users["$user"]=1
+        bw_gb_int="${bandwidth_gb%%.*}"
+        if [[ "$bandwidth_gb" != "0" && -n "$bandwidth_gb" && "$bw_gb_int" =~ ^[0-9]+$ ]]; then
+            quota_bytes=$(( bw_gb_int * 1073741824 ))
+            if (( new_total >= quota_bytes )); then
+                if ! $user_locked; then
+                    usermod -L "$user" &>/dev/null
+                    killall -u "$user" -9 &>/dev/null
+                    locked_users["$user"]=1
+                fi
             fi
         fi
     done < "$DB_FILE"
@@ -1458,6 +1505,10 @@ create_user() {
         echo -e "\n${C_RED}❌ Error: Username cannot be empty.${C_RESET}"
         return
     fi
+    if [[ ! "$username" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo -e "\n${C_RED}❌ Error: Username must contain only alphanumeric characters, underscores, or dashes.${C_RESET}"
+        return
+    fi
     if db_has_user "$username"; then
         echo -e "\n${C_RED}❌ Error: User '$username' already exists in FirewallFalcon.${C_RESET}"
         return
@@ -1485,6 +1536,8 @@ create_user() {
             password=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 8)
             echo -e "${C_GREEN}🔑 Auto-generated password: ${C_YELLOW}$password${C_RESET}"
             break
+        elif [[ "$password" == *":"* ]]; then
+            echo -e "\n${C_RED}❌ Error: Password cannot contain colons (:).${C_RESET}"
         else
             break
         fi
@@ -1590,24 +1643,31 @@ edit_user() {
         case $edit_choice in
             1)
                local new_pass=""
-               read -p "Enter new password (or press Enter for auto-generated): " new_pass
-               if [[ -z "$new_pass" ]]; then
-                   new_pass=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 8)
-                   echo -e "${C_GREEN}🔑 Auto-generated: ${C_YELLOW}$new_pass${C_RESET}"
-               fi
+               while true; do
+                   read -p "Enter new password (or press Enter for auto-generated): " new_pass
+                   if [[ -z "$new_pass" ]]; then
+                       new_pass=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 8)
+                       echo -e "${C_GREEN}🔑 Auto-generated: ${C_YELLOW}$new_pass${C_RESET}"
+                       break
+                   elif [[ "$new_pass" == *":"* ]]; then
+                       echo -e "\n${C_RED}❌ Error: Password cannot contain colons (:).${C_RESET}"
+                   else
+                       break
+                   fi
+               done
                echo "$username:$new_pass" | chpasswd
-               sed -i "s/^$username:.*/$username:$new_pass:$cur_expiry:$cur_limit:$cur_bw/" "$DB_FILE"
+               sed -i "s|^$username:.*|$username:$new_pass:$cur_expiry:$cur_limit:$cur_bw|" "$DB_FILE"
                echo -e "\n${C_GREEN}✅ Password for '$username' changed to: ${C_YELLOW}$new_pass${C_RESET}"
                ;;
             2) read -p "Enter new duration (in days from today): " days
                if [[ "$days" =~ ^[0-9]+$ ]]; then
                    local new_expire_date; new_expire_date=$(date -d "+$days days" +%Y-%m-%d); chage -E "$new_expire_date" "$username"
-                   sed -i "s/^$username:.*/$username:$cur_pass:$new_expire_date:$cur_limit:$cur_bw/" "$DB_FILE"
+                   sed -i "s|^$username:.*|$username:$cur_pass:$new_expire_date:$cur_limit:$cur_bw|" "$DB_FILE"
                    echo -e "\n${C_GREEN}✅ Expiration for '$username' set to ${C_YELLOW}$new_expire_date${C_RESET}."
                else echo -e "\n${C_RED}❌ Invalid number of days.${C_RESET}"; fi ;;
             3) read -p "Enter new simultaneous connection limit: " new_limit
                if [[ "$new_limit" =~ ^[0-9]+$ ]]; then
-                   sed -i "s/^$username:.*/$username:$cur_pass:$cur_expiry:$new_limit:$cur_bw/" "$DB_FILE"
+                   sed -i "s|^$username:.*|$username:$cur_pass:$cur_expiry:$new_limit:$cur_bw|" "$DB_FILE"
                    echo -e "\n${C_GREEN}✅ Connection limit for '$username' set to ${C_YELLOW}$new_limit${C_RESET}."
                else echo -e "\n${C_RED}❌ Invalid limit.${C_RESET}"; fi ;;
             4) read -p "Enter new bandwidth limit in GB (0 = unlimited): " new_bw
@@ -1788,7 +1848,7 @@ renew_user() {
         line=$(grep "^$u:" "$DB_FILE")
         IFS=: read -r _ pass _expiry limit bw _ <<< "$line"
         [[ -z "$bw" ]] && bw="0"
-        sed -i "s/^$u:.*/$u:$pass:$new_expire_date:$limit:$bw/" "$DB_FILE"
+        sed -i "s|^$u:.*|$u:$pass:$new_expire_date:$limit:$bw|" "$DB_FILE"
         echo -e " ✅ ${C_YELLOW}$u${C_RESET} renewed until ${C_GREEN}${new_expire_date}${C_RESET}."
     done
 }
@@ -2087,13 +2147,14 @@ install_udp_custom() {
         chmod +x "$UDPGW_BINARY"
     else
         echo -e "${C_YELLOW}ℹ️ Architecture is $arch. Compiling udpgw from source (this may take a minute)...${C_RESET}"
-        ff_pkg_install cmake g++ make git >/dev/null 2>&1
+        ff_pkg_install cmake g++ make git build-essential >/dev/null 2>&1
         local temp_build="/tmp/badvpn_build"
         rm -rf "$temp_build"
-        git clone -q https://github.com/ambrop72/badvpn.git "$temp_build"
-        (cd "$temp_build" && cmake . >/dev/null 2>&1 && make >/dev/null 2>&1)
+        git clone -q --depth 1 https://github.com/ambrop72/badvpn.git "$temp_build"
+        (cd "$temp_build" && export CFLAGS="-Os" && export CXXFLAGS="-Os" && cmake . -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1 -DCMAKE_BUILD_TYPE=MinSizeRel >/dev/null 2>&1 && make >/dev/null 2>&1)
         local compiled_bin=$(find "$temp_build" -name "badvpn-udpgw" -type f | head -n 1)
         if [[ -n "$compiled_bin" && -f "$compiled_bin" ]]; then
+            strip "$compiled_bin" 2>/dev/null || true
             cp "$compiled_bin" "$UDPGW_BINARY"
             chmod +x "$UDPGW_BINARY"
         else
@@ -2129,6 +2190,10 @@ Type=simple
 ExecStart=$UDPGW_BINARY --listen-addr 127.0.0.1:7800 --max-clients 1000 --max-connections-for-client 100
 Restart=always
 RestartSec=2s
+MemoryHigh=16M
+MemoryMax=24M
+CPUWeight=50
+IOWeight=50
 
 [Install]
 WantedBy=multi-user.target
@@ -2147,6 +2212,10 @@ ExecStart=$UDP_CUSTOM_DIR/udp-custom server
 WorkingDirectory=$UDP_CUSTOM_DIR/
 Restart=always
 RestartSec=2s
+MemoryHigh=32M
+MemoryMax=48M
+CPUWeight=50
+IOWeight=50
 
 [Install]
 WantedBy=multi-user.target
@@ -2224,15 +2293,17 @@ install_badvpn() {
     echo -e "\n${C_GREEN}🔄 Updating package lists...${C_RESET}"
     ff_apt_update || return
     echo -e "\n${C_GREEN}📦 Installing all required packages...${C_RESET}"
-    ff_pkg_install cmake g++ make screen git build-essential libssl-dev libnspr4-dev libnss3-dev pkg-config || {
+    ff_pkg_install cmake g++ make git build-essential || {
         echo -e "${C_RED}❌ Failed to install badvpn build dependencies.${C_RESET}"
         return
     }
     echo -e "\n${C_GREEN}📥 Cloning badvpn from github...${C_RESET}"
-    git clone https://github.com/ambrop72/badvpn.git "$BADVPN_BUILD_DIR"
+    git clone --depth 1 https://github.com/ambrop72/badvpn.git "$BADVPN_BUILD_DIR"
     cd "$BADVPN_BUILD_DIR" || { echo -e "${C_RED}❌ Failed to change directory to build folder.${C_RESET}"; return; }
-    echo -e "\n${C_GREEN}⚙️ Running CMake...${C_RESET}"
-    cmake . || { echo -e "${C_RED}❌ CMake configuration failed.${C_RESET}"; rm -rf "$BADVPN_BUILD_DIR"; return; }
+    echo -e "\n${C_GREEN}⚙️ Running CMake (lightweight configuration)...${C_RESET}"
+    export CFLAGS="-Os"
+    export CXXFLAGS="-Os"
+    cmake . -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1 -DCMAKE_BUILD_TYPE=MinSizeRel || { echo -e "${C_RED}❌ CMake configuration failed.${C_RESET}"; rm -rf "$BADVPN_BUILD_DIR"; return; }
     echo -e "\n${C_GREEN}🛠️ Compiling source...${C_RESET}"
     make || { echo -e "${C_RED}❌ Compilation (make) failed.${C_RESET}"; rm -rf "$BADVPN_BUILD_DIR"; return; }
     local badvpn_binary
@@ -2243,12 +2314,14 @@ install_badvpn() {
         return
     fi
     echo -e "${C_GREEN}ℹ️ Found binary at: $badvpn_binary${C_RESET}"
+    strip "$badvpn_binary" 2>/dev/null || true
     chmod +x "$badvpn_binary"
     echo -e "\n${C_GREEN}📝 Creating systemd service file...${C_RESET}"
     cat > "$BADVPN_SERVICE_FILE" <<-EOF
 [Unit]
 Description=BadVPN UDP Gateway
 After=network.target
+
 [Service]
 ExecStart=$badvpn_binary --listen-addr 0.0.0.0:7300 --max-clients 1000 --max-connections-for-client 8
 User=root
@@ -2256,6 +2329,11 @@ Restart=always
 RestartSec=3
 StandardOutput=null
 StandardError=null
+MemoryHigh=16M
+MemoryMax=24M
+CPUWeight=50
+IOWeight=50
+
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -3127,6 +3205,10 @@ User=root
 ExecStart=$DNSTT_BINARY -udp :53$mtu_string -privkey-file $DNSTT_KEYS_DIR/server.key $TUNNEL_DOMAIN $FORWARD_TARGET
 Restart=always
 RestartSec=3
+MemoryHigh=32M
+MemoryMax=48M
+CPUWeight=50
+IOWeight=50
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -3305,6 +3387,10 @@ Type=simple
 ExecStart=$FALCONPROXY_BINARY -p $ports
 Restart=always
 RestartSec=2s
+MemoryHigh=32M
+MemoryMax=48M
+CPUWeight=50
+IOWeight=50
 
 [Install]
 WantedBy=default.target
@@ -3433,6 +3519,10 @@ Environment=ZIVPN_LOG_LEVEL=info
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
 NoNewPrivileges=true
+MemoryHigh=48M
+MemoryMax=64M
+CPUWeight=50
+IOWeight=50
 
 [Install]
 WantedBy=multi-user.target
@@ -4360,6 +4450,10 @@ bulk_create_users() {
     
     read -p "👉 Enter username prefix (e.g., 'user'): " prefix
     if [[ -z "$prefix" ]]; then echo -e "\n${C_RED}❌ Prefix cannot be empty.${C_RESET}"; return; fi
+    if [[ ! "$prefix" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo -e "\n${C_RED}❌ Error: Prefix must contain only alphanumeric characters, underscores, or dashes.${C_RESET}"
+        return
+    fi
     
     read -p "🔢 How many users to create? " count
     if ! [[ "$count" =~ ^[0-9]+$ ]] || [[ "$count" -lt 1 ]] || [[ "$count" -gt 100 ]]; then
